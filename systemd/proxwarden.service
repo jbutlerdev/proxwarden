@@ -1,0 +1,41 @@
+[Unit]
+Description=ProxWarden - Proxmox Container Failover Service
+Documentation=https://github.com/jbutlerdev/proxwarden
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/proxwarden daemon --config /etc/proxwarden/proxwarden.yaml
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=10
+User=proxwarden
+Group=proxwarden
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/proxwarden /var/lib/proxwarden
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=proxwarden
+
+# Environment
+Environment=PROXWARDEN_CONFIG=/etc/proxwarden/proxwarden.yaml
+
+[Install]
+WantedBy=multi-user.target

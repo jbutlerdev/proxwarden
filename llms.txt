@@ -1,0 +1,159 @@
+# ProxWarden LLM Development Guide
+
+This file provides context for Large Language Models working on the ProxWarden project.
+
+## Project Summary
+
+ProxWarden is a Golang application that provides automated failover for Proxmox LXC containers using a backup/restore approach rather than live migration. It monitors container health and automatically restores containers from backups on healthy nodes when failures are detected.
+
+## Key Implementation Details
+
+### Failover Strategy
+Unlike traditional live migration, ProxWarden uses backup/restore:
+1. Monitors container health continuously
+2. On failure: creates backup (or uses latest) → stops original → restores on target node → starts restored container
+3. This approach ensures data consistency and works across different storage types
+
+### Technology Stack
+- **Language**: Go 1.21+ (idiomatic Go patterns)
+- **Dependencies**: 
+  - github.com/luthermonson/go-proxmox v0.1.1 (Proxmox API)
+  - github.com/spf13/cobra v1.8.0 (CLI)
+  - github.com/spf13/viper v1.18.2 (Config)
+  - github.com/sirupsen/logrus v1.9.3 (Logging)
+- **Build**: Makefile with standard targets (build, test, install, clean)
+
+### Code Organization
+```
+internal/
+├── api/        # Proxmox API client (backup, restore, container mgmt)
+├── config/     # YAML config with validation
+├── health/     # TCP/HTTP/ICMP health checks
+├── failover/   # Backup-restore orchestration
+├── monitor/    # Container state tracking
+└── daemon/     # Service implementation
+
+cmd/proxwarden/ # CLI commands (daemon, status, failover, backup)
+```
+
+### Configuration Structure
+YAML-based with sections:
+- `proxmox`: API connection (endpoint, auth, TLS)
+- `backup`: Storage settings, retention, timeouts
+- `monitoring`: Health checks, failure thresholds, container definitions
+- `failover`: Auto-failover settings, retry logic, hooks
+- `logging`: Levels, formats, output
+
+### Health Monitoring
+Supports multiple check types:
+- TCP port connectivity
+- HTTP/HTTPS endpoints with status validation  
+- ICMP ping (requires privileges)
+Configurable per-container with independent timeouts and intervals.
+
+### API Client Notes
+Using go-proxmox library v0.1.1:
+- Container operations: Get, Start, Stop, Migrate
+- Backup operations: Currently placeholder (TODO: implement via direct API calls)
+- Error handling: Wrap with context, structured logging
+- Timeouts: All operations use contexts with timeouts
+
+### Testing Approach
+- Table-driven tests for multiple scenarios
+- Mock external dependencies (API client, network)
+- Test success/failure paths and edge cases
+- Context cancellation testing for network ops
+
+## Common Development Patterns
+
+### Error Handling
+```go
+if err != nil {
+    return fmt.Errorf("operation failed: %w", err)
+}
+```
+
+### Structured Logging
+```go
+logger.WithFields(logrus.Fields{
+    "container_id": containerID,
+    "node": nodeName,
+}).Info("Starting failover")
+```
+
+### Configuration Access
+```go
+cfg, err := config.Load()  // Uses Viper to load from YAML
+```
+
+### API Operations
+```go
+task, err := client.StopContainer(ctx, containerID)
+if err != nil {
+    return fmt.Errorf("failed to stop: %w", err)
+}
+return task.Wait(ctx, timeout, interval)
+```
+
+## Development Guidelines
+
+1. **Always use contexts** for cancellation in long-running operations
+2. **Validate configuration early** - fail fast on invalid config
+3. **Use interfaces** for testability (especially API client)
+4. **Mock external dependencies** in tests
+5. **Handle partial failures gracefully** - don't leave system in inconsistent state
+6. **Log with structured data** for better debugging
+7. **Follow Go conventions** - package naming, error handling, etc.
+
+## Testing Strategy
+
+- Unit tests for individual components
+- Integration tests for API interactions (with mocks)
+- Configuration validation tests
+- Health check tests (including network timeouts)
+- Failover orchestration tests
+
+## Security Considerations
+
+- Runs as dedicated `proxwarden` user
+- Systemd security restrictions applied
+- Supports both password and API token auth
+- Config file permissions restricted
+- Input validation for all external data
+
+## Extension Points
+
+The design supports future extensions:
+- Additional health check types
+- Different backup storage backends  
+- Web UI interfaces
+- Metrics/monitoring integration
+- Custom hook systems
+- Multiple Proxmox cluster support
+
+## Backup/Restore Implementation Notes
+
+Current backup methods in `internal/api/client.go` are placeholders. Full implementation requires:
+1. Direct Proxmox API calls to `/cluster/backup` or `vzdump` commands
+2. Parsing backup filenames from task logs
+3. Restore via POST to `/nodes/{node}/lxc` with `restore=1` parameter
+4. Proper error handling for backup/restore failures
+
+## Debugging and Troubleshooting
+
+Common debug approaches:
+- Enable debug logging: `--debug --log-level debug`
+- Check systemd status: `systemctl status proxwarden`
+- View logs: `journalctl -u proxwarden -f`
+- Test connectivity: `proxwarden status`
+- Manual operations: `proxwarden failover trigger <id>`
+
+## Performance Considerations
+
+- Health checks run concurrently per container
+- Backup/restore operations have configurable timeouts
+- Monitoring interval balances responsiveness vs load
+- State management uses mutexes for thread safety
+- Failed operations include exponential backoff
+
+This should provide enough context for LLMs to understand the codebase architecture, patterns, and development approach when working on ProxWarden.

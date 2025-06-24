@@ -1,0 +1,84 @@
+# ProxWarden Configuration Example
+
+# Proxmox VE connection settings
+proxmox:
+  endpoint: "https://your-proxmox-server:8006"
+  username: "root@pam"
+  # Option 1: Password authentication
+  password: "your-password"
+  # Option 2: API token authentication (preferred)
+  # token_id: "your-token-id"
+  # secret: "your-secret"
+  insecure: false  # Set to true to skip TLS verification
+
+# Backup configuration for backup-based failover
+backup:
+  storage: "backup-storage"        # Storage for backups (shared between nodes)
+  backup_dir: "dump"              # Directory within storage for backups
+  retention_days: 7               # How long to keep backups
+  pre_backup: true                # Create backup before failover
+  backup_timeout: 10m             # Timeout for backup operations
+
+# Container monitoring configuration
+monitoring:
+  interval: 30s           # How often to check container health
+  timeout: 10s            # Timeout for individual health checks
+  failure_threshold: 3    # Number of consecutive failures before triggering failover
+  
+  # Containers to monitor
+  containers:
+    - id: 100
+      name: "web-server"
+      priority: 1
+      storage: "local-lvm"                # Container storage on target node
+      backup_storage: "backup-storage"    # Optional: override backup storage
+      failover_nodes: ["node2", "node3"]  # Preferred failover nodes in order
+      health_checks:
+        - type: "tcp"
+          target: "192.168.1.100"
+          port: 80
+          timeout: 5s
+          interval: 30s
+        - type: "http"
+          target: "192.168.1.100"
+          port: 80
+          path: "/health"
+          timeout: 10s
+          interval: 30s
+    
+    - id: 101
+      name: "database"
+      priority: 2
+      storage: "ceph-storage"
+      failover_nodes: ["node3", "node2"]
+      health_checks:
+        - type: "tcp"
+          target: "192.168.1.101"
+          port: 5432
+          timeout: 5s
+          interval: 30s
+        - type: "ping"
+          target: "192.168.1.101"
+          timeout: 3s
+          interval: 30s
+
+# Failover behavior configuration
+failover:
+  auto_failover: true              # Enable automatic failover
+  max_retries: 3                   # Maximum backup-restore attempts
+  retry_delay: 5s                  # Delay between retry attempts
+  backup_before_failover: true     # Create backup before failover (if false, uses latest)
+  restore_timeout: 15m             # Timeout for restore operations
+  
+  # Hooks to run before/after failover (optional)
+  pre_failover_hooks:
+    - "/usr/local/bin/pre-failover-notification.sh"
+  post_failover_hooks:
+    - "/usr/local/bin/post-failover-notification.sh"
+    - "/usr/local/bin/update-dns.sh"
+
+# Logging configuration
+logging:
+  level: "info"          # debug, info, warn, error
+  format: "json"         # json or text
+  file: ""               # Optional: log to file instead of stdout
