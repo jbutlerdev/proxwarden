@@ -14,7 +14,7 @@ require (
 	github.com/buger/goterm v1.0.4 // indirect
 	github.com/diskfs/go-diskfs v1.2.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
-	github.com/gorilla/websocket v1.4.2 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jinzhu/copier v0.3.4 // indirect
